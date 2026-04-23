@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐍 SNEK</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent: #39ff14;
+    --accent2: #ff2d78;
+    --accent3: #ffe94a;
+    --text: #e0e0f0;
+    --muted: #555570;
+    --glow: 0 0 20px rgba(57, 255, 20, 0.4);
+    --glow2: 0 0 20px rgba(255, 45, 120, 0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(57,255,20,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(57,255,20,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-shadow: var(--glow), 0 0 60px rgba(57,255,20,0.2);
+    animation: pulse-title 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-title {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+  }
+
+  .scoreboard {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    width: 100%;
+    max-width: 520px;
+  }
+
+  .score-card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .score-card::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transition: transform 0.3s;
+  }
+
+  .score-card.highlight::before { transform: scaleX(1); }
+
+  .score-card .label {
+    font-size: 0.55rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .score-card .value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-shadow: var(--glow);
+    transition: transform 0.15s, color 0.15s;
+  }
+
+  .score-card .value.bump {
+    transform: scale(1.3);
+    color: #fff;
+  }
+
+  .score-card.burger .value { color: var(--accent2); text-shadow: var(--glow2); }
+  .score-card.milktea .value { color: var(--accent3); text-shadow: 0 0 20px rgba(255,233,74,0.5); }
+  .score-card.best .value { font-size: 0.85rem; color: var(--accent3); }
+
+  .speed-bar-wrap {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .speed-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .speed-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .speed-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    transition: width 0.5s ease;
+    box-shadow: 0 0 8px rgba(57,255,20,0.6);
+    width: 5%;
+  }
+
+  /* Canvas container */
+  .canvas-wrap {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(57,255,20,0.1),
+      0 0 40px rgba(0,0,0,0.8),
+      inset 0 0 60px rgba(0,0,0,0.5);
+  }
+
+  canvas {
+    display: block;
+  }
+
+  /* Overlay screens */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10,10,15,0.92);
+    backdrop-filter: blur(4px);
+    border-radius: 12px;
+    gap: 18px;
+    transition: opacity 0.3s;
+    z-index: 10;
+  }
+
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .overlay-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    text-align: center;
+  }
+
+  .overlay-title.green { color: var(--accent); text-shadow: var(--glow); }
+  .overlay-title.red { color: var(--accent2); text-shadow: var(--glow2); }
+
+  .overlay-sub {
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+
+  .final-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: var(--accent);
+    text-shadow: var(--glow);
+    line-height: 1;
+  }
+
+  .food-summary {
+    display: flex;
+    gap: 20px;
+    font-size: 0.8rem;
+    color: var(--text);
+  }
+
+  .food-summary span { display: flex; align-items: center; gap: 6px; }
+
+  .btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 12px 36px;
+    background: transparent;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    border-radius: 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.2s;
+    z-index: -1;
+  }
+
+  .btn:hover { color: var(--bg); box-shadow: var(--glow); }
+  .btn:hover::before { transform: scaleX(1); }
+  .btn:active { transform: scale(0.96); }
+
+  .controls-hint {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  .credit {
+    position: fixed;
+    bottom: 14px;
+    right: 18px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    text-decoration: none;
+    opacity: 0.55;
+    transition: opacity 0.2s;
+  }
+
+  .credit:hover { opacity: 1; }
+
+  .credit img {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+  }
+
+  .credit span {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  .credit:hover span { color: var(--accent); }
+
+  .key {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-size: 0.65rem;
+    color: var(--text);
+  }
+
+  /* Particle canvas */
+  #particleCanvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  /* Flash overlay */
+  .flash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .flash.green-flash { background: rgba(57,255,20,0.12); }
+  .flash.red-flash { background: rgba(255,45,120,0.15); }
+</style>
+</head>
+<body>
+
+<canvas id="particleCanvas"></canvas>
+<div class="flash" id="flash"></div>
+
+<a class="credit" href="https://github.com/vjay114" target="_blank" rel="noopener">
+  <img src="https://jay-spin-the-wheel.vercel.app/favicon-32x32.png" alt="Jaypro">
+  <span>by Jaypro</span>
+</a>
+
+<div class="wrapper">
+  <div class="title">🐍 SNEK</div>
+
+  <div class="scoreboard">
+    <div class="score-card" id="cardScore">
+      <div class="label">Score</div>
+      <div class="value" id="scoreVal">0</div>
+    </div>
+    <div class="score-card burger" id="cardBurger">
+      <div class="label">🍔 Burgers</div>
+      <div class="value" id="burgerVal">0</div>
+    </div>
+    <div class="score-card milktea" id="cardMilktea">
+      <div class="label">🧋 Milkteas</div>
+      <div class="value" id="milkteaVal">0</div>
+    </div>
+    <div class="score-card best" id="cardBest">
+      <div class="label">Best Food</div>
+      <div class="value" id="bestVal">🍔 Burger</div>
+    </div>
+  </div>
+
+  <div class="speed-bar-wrap">
+    <div class="speed-label">Speed</div>
+    <div class="speed-bar"><div class="speed-fill" id="speedFill"></div></div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Start Screen -->
+    <div class="overlay" id="startScreen">
+      <div class="overlay-title green">READY?</div>
+      <div class="overlay-sub">Eat fast. Grow big. Don't die.</div>
+      <div style="display:flex;gap:16px;font-size:1.5rem">
+        <span>🍔 +10</span><span>🧋 +5</span>
+      </div>
+      <button class="btn" id="startBtn">START GAME</button>
+      <div class="controls-hint">
+        <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
+        or
+        <span class="key">↑</span><span class="key">←</span><span class="key">↓</span><span class="key">→</span>
+      </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div class="overlay hidden" id="gameOverScreen">
+      <div class="overlay-title red">GAME OVER</div>
+      <div class="final-score" id="finalScore">0</div>
+      <div class="overlay-sub">FINAL SCORE</div>
+      <div class="food-summary">
+        <span>🍔 <span id="finalBurgers">0</span> burgers</span>
+        <span>🧋 <span id="finalMilkteas">0</span> milkteas</span>
+      </div>
+      <button class="btn" id="restartBtn">PLAY AGAIN</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+const CFG = {
+  cols: 20,
+  rows: 20,
+  cellSize: 26,
+  initialSpeed: 150,    // ms per tick
+  minSpeed: 60,
+  speedStep: 5,         // ms faster every food eaten
+  burgerProb: 0.30,
+  burgerPoints: 10,
+  milkteaPoints: 5,
+};
+
+// ─── CANVAS SETUP ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width  = CFG.cols * CFG.cellSize;
+canvas.height = CFG.rows * CFG.cellSize;
+
+const pCanvas = document.getElementById('particleCanvas');
+const pCtx = pCanvas.getContext('2d');
+pCanvas.width  = window.innerWidth;
+pCanvas.height = window.innerHeight;
+
+// ─── DOM REFS ────────────────────────────────────────────────────────────────
+const DOM = {
+  scoreVal:       document.getElementById('scoreVal'),
+  burgerVal:      document.getElementById('burgerVal'),
+  milkteaVal:     document.getElementById('milkteaVal'),
+  bestVal:        document.getElementById('bestVal'),
+  speedFill:      document.getElementById('speedFill'),
+  startScreen:    document.getElementById('startScreen'),
+  gameOverScreen: document.getElementById('gameOverScreen'),
+  startBtn:       document.getElementById('startBtn'),
+  restartBtn:     document.getElementById('restartBtn'),
+  finalScore:     document.getElementById('finalScore'),
+  finalBurgers:   document.getElementById('finalBurgers'),
+  finalMilkteas:  document.getElementById('finalMilkteas'),
+  flash:          document.getElementById('flash'),
+  cardScore:      document.getElementById('cardScore'),
+};
+
+// ─── AUDIO ENGINE ────────────────────────────────────────────────────────────
+const AudioEngine = (() => {
+  let ctx;
+
+  function init() {
+    if (ctx) return;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  function playTone(freq, type, duration, volume = 0.3, decay = 0.95) {
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freq * decay, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  function eatMilktea() {
+    init();
+    playTone(523, 'sine', 0.12, 0.25);
+    setTimeout(() => playTone(659, 'sine', 0.12, 0.2), 60);
+  }
+
+  function eatBurger() {
+    init();
+    playTone(880, 'triangle', 0.08, 0.3);
+    setTimeout(() => playTone(1046, 'triangle', 0.08, 0.28), 60);
+    setTimeout(() => playTone(1318, 'triangle', 0.15, 0.25), 120);
+  }
+
+  function die() {
+    init();
+    playTone(440, 'sawtooth', 0.08, 0.35);
+    setTimeout(() => playTone(330, 'sawtooth', 0.08, 0.3), 80);
+    setTimeout(() => playTone(220, 'sawtooth', 0.2, 0.4), 160);
+  }
+
+  function move() {
+    init();
+    playTone(100, 'sine', 0.03, 0.06, 1);
+  }
+
+  return { eatMilktea, eatBurger, die, move };
+})();
+
+// ─── PARTICLE SYSTEM ─────────────────────────────────────────────────────────
+const Particles = (() => {
+  const particles = [];
+  let running = false;
+
+  function spawn(x, y, color, count = 18) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 5;
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        decay: 0.03 + Math.random() * 0.03,
+        radius: 2 + Math.random() * 3,
+        color,
+      });
+    }
+    if (!running) loop();
+  }
+
+  function loop() {
+    running = true;
+    pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.12;
+      p.life -= p.decay;
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      pCtx.save();
+      pCtx.globalAlpha = p.life;
+      pCtx.beginPath();
+      pCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      pCtx.fillStyle = p.color;
+      pCtx.fill();
+      pCtx.restore();
+    }
+    if (particles.length > 0) requestAnimationFrame(loop);
+    else running = false;
+  }
+
+  return { spawn };
+})();
+
+// ─── FLASH EFFECT ────────────────────────────────────────────────────────────
+function flash(type) {
+  DOM.flash.className = `flash ${type}`;
+  DOM.flash.style.opacity = '1';
+  setTimeout(() => { DOM.flash.style.opacity = '0'; }, 120);
+}
+
+// ─── SCORE BUMP ANIMATION ────────────────────────────────────────────────────
+function bumpEl(el) {
+  el.classList.remove('bump');
+  void el.offsetWidth;
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 200);
+}
+
+// ─── GAME STATE ──────────────────────────────────────────────────────────────
+let state = {};
+
+function initState() {
+  return {
+    snake: [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }],
+    dir:   { x: 1, y: 0 },
+    nextDir: { x: 1, y: 0 },
+    foods: [],
+    score: 0,
+    burgers: 0,
+    milkteas: 0,
+    speed: CFG.initialSpeed,
+    running: false,
+    dead: false,
+    tickTimer: null,
+    frame: null,
+    // visual interpolation
+    progress: 0,
+    lastTick: 0,
+  };
+}
+
+// ─── FOOD ─────────────────────────────────────────────────────────────────────
+function spawnFood() {
+  const occupied = new Set(state.snake.map(s => `${s.x},${s.y}`));
+  state.foods.forEach(f => occupied.add(`${f.x},${f.y}`));
+
+  let x, y;
+  do {
+    x = Math.floor(Math.random() * CFG.cols);
+    y = Math.floor(Math.random() * CFG.rows);
+  } while (occupied.has(`${x},${y}`));
+
+  const isBurger = Math.random() < CFG.burgerProb;
+  state.foods.push({
+    x, y,
+    type: isBurger ? 'burger' : 'milktea',
+    emoji: isBurger ? '🍔' : '🧋',
+    points: isBurger ? CFG.burgerPoints : CFG.milkteaPoints,
+    born: performance.now(),
+    pulse: Math.random() * Math.PI * 2, // phase offset
+  });
+}
+
+// ─── TICK (GAME LOGIC) ────────────────────────────────────────────────────────
+function tick() {
+  if (!state.running) return;
+
+  state.dir = { ...state.nextDir };
+  const head = {
+    x: state.snake[0].x + state.dir.x,
+    y: state.snake[0].y + state.dir.y,
+  };
+
+  // Wall collision
+  if (head.x < 0 || head.x >= CFG.cols || head.y < 0 || head.y >= CFG.rows) {
+    return gameOver();
+  }
+
+  // Self collision
+  if (state.snake.some(s => s.x === head.x && s.y === head.y)) {
+    return gameOver();
+  }
+
+  state.snake.unshift(head);
+
+  // Check food
+  const ateIdx = state.foods.findIndex(f => f.x === head.x && f.y === head.y);
+  if (ateIdx !== -1) {
+    const food = state.foods[ateIdx];
+    state.foods.splice(ateIdx, 1);
+
+    state.score += food.points;
+    if (food.type === 'burger') {
+      state.burgers++;
+      AudioEngine.eatBurger();
+      flash('green-flash');
+    } else {
+      state.milkteas++;
+      AudioEngine.eatMilktea();
+      flash('green-flash');
+    }
+
+    // Particle burst at screen position
+    const rect = canvas.getBoundingClientRect();
+    const px = rect.left + (head.x + 0.5) * CFG.cellSize;
+    const py = rect.top  + (head.y + 0.5) * CFG.cellSize;
+    const pColor = food.type === 'burger' ? '#ff2d78' : '#ffe94a';
+    Particles.spawn(px, py, pColor, 24);
+
+    // Speed up
+    state.speed = Math.max(CFG.minSpeed, state.speed - CFG.speedStep);
+
+    // Ensure at least 1 food always on board
+    spawnFood();
+    if (state.foods.length < 1) spawnFood();
+
+    updateHUD();
+    resetTickTimer();
+  } else {
+    state.snake.pop();
+    AudioEngine.move();
+  }
+
+  state.progress = 0;
+  state.lastTick = performance.now();
+  updateHUD();
+}
+
+function resetTickTimer() {
+  clearInterval(state.tickTimer);
+  state.tickTimer = setInterval(tick, state.speed);
+}
+
+// ─── HUD UPDATE ───────────────────────────────────────────────────────────────
+function updateHUD() {
+  // Score
+  if (+DOM.scoreVal.textContent !== state.score) {
+    DOM.scoreVal.textContent = state.score;
+    bumpEl(DOM.scoreVal);
+  }
+  if (+DOM.burgerVal.textContent !== state.burgers) {
+    DOM.burgerVal.textContent = state.burgers;
+    bumpEl(DOM.burgerVal);
+  }
+  if (+DOM.milkteaVal.textContent !== state.milkteas) {
+    DOM.milkteaVal.textContent = state.milkteas;
+    bumpEl(DOM.milkteaVal);
+  }
+
+  // Best food (dynamic: based on actual score contribution)
+  const burgerScore  = state.burgers * CFG.burgerPoints;
+  const milkteaScore = state.milkteas * CFG.milkteaPoints;
+  DOM.bestVal.textContent = burgerScore >= milkteaScore ? '🍔 Burger' : '🧋 Milktea';
+
+  // Speed bar: 0% at initialSpeed, 100% at minSpeed
+  const range = CFG.initialSpeed - CFG.minSpeed;
+  const traveled = CFG.initialSpeed - state.speed;
+  const pct = Math.min(100, 5 + (traveled / range) * 95);
+  document.getElementById('speedFill').style.width = pct + '%';
+}
+
+// ─── GAME OVER ────────────────────────────────────────────────────────────────
+function gameOver() {
+  state.running = false;
+  state.dead = true;
+  clearInterval(state.tickTimer);
+  cancelAnimationFrame(state.frame);
+
+  AudioEngine.die();
+  flash('red-flash');
+
+  const rect = canvas.getBoundingClientRect();
+  const head = state.snake[0];
+  const px = rect.left + (head.x + 0.5) * CFG.cellSize;
+  const py = rect.top  + (head.y + 0.5) * CFG.cellSize;
+  Particles.spawn(px, py, '#ff2d78', 40);
+
+  setTimeout(() => {
+    DOM.finalScore.textContent  = state.score;
+    DOM.finalBurgers.textContent  = state.burgers;
+    DOM.finalMilkteas.textContent = state.milkteas;
+    DOM.gameOverScreen.classList.remove('hidden');
+  }, 600);
+}
+
+// ─── RENDERER ─────────────────────────────────────────────────────────────────
+function drawGrid() {
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= CFG.cols; x++) {
+    ctx.beginPath();
+    ctx.moveTo(x * CFG.cellSize, 0);
+    ctx.lineTo(x * CFG.cellSize, canvas.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= CFG.rows; y++) {
+    ctx.beginPath();
+    ctx.moveTo(0, y * CFG.cellSize);
+    ctx.lineTo(canvas.width, y * CFG.cellSize);
+    ctx.stroke();
+  }
+}
+
+function drawSnake(interp) {
+  const s = state.snake;
+  if (s.length === 0) return;
+
+  const dx = state.dir.x * CFG.cellSize * interp;
+  const dy = state.dir.y * CFG.cellSize * interp;
+
+  const pad = 3;
+  const r   = 5;
+
+  for (let i = s.length - 1; i >= 0; i--) {
+    const seg = s[i];
+    let ox = 0, oy = 0;
+    if (i === 0) { ox = dx; oy = dy; }
+
+    const sx = seg.x * CFG.cellSize + pad + ox;
+    const sy = seg.y * CFG.cellSize + pad + oy;
+    const sw = CFG.cellSize - pad * 2;
+    const sh = CFG.cellSize - pad * 2;
+
+    // Gradient along body
+    const t = i / (s.length - 1);
+    const green = Math.round(255 * (1 - t * 0.7));
+    const alpha = 1 - t * 0.3;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Body glow
+    if (i < 4) {
+      ctx.shadowColor = '#39ff14';
+      ctx.shadowBlur  = 12 - i * 2;
+    }
+
+    ctx.fillStyle = `rgb(${Math.round(20 + t * 10)}, ${green}, ${Math.round(20 + t * 30)})`;
+    roundRect(ctx, sx, sy, sw, sh, r);
+    ctx.fill();
+
+    // Inner highlight
+    if (i === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      roundRect(ctx, sx + 3, sy + 2, sw - 6, sh / 2.5, 3);
+      ctx.fill();
+
+      // Eyes
+      const eyeSize = 3;
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#fff';
+      const ex1 = sx + sw * 0.3, ex2 = sx + sw * 0.7;
+      const ey = sy + sh * 0.3;
+      ctx.beginPath();
+      ctx.arc(ex1, ey, eyeSize, 0, Math.PI * 2);
+      ctx.arc(ex2, ey, eyeSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0a0a0f';
+      ctx.beginPath();
+      ctx.arc(ex1 + state.dir.x, ey + state.dir.y, eyeSize / 2, 0, Math.PI * 2);
+      ctx.arc(ex2 + state.dir.x, ey + state.dir.y, eyeSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+}
+
+function drawFood(now) {
+  for (const food of state.foods) {
+    const age   = (now - food.born) / 1000;
+    const pulse = Math.sin(age * 3 + food.pulse) * 0.08 + 1;
+    const cx    = (food.x + 0.5) * CFG.cellSize;
+    const cy    = (food.y + 0.5) * CFG.cellSize;
+    const size  = CFG.cellSize * 0.8 * pulse;
+
+    // Glow ring
+    ctx.save();
+    ctx.globalAlpha = 0.2 + 0.1 * Math.sin(age * 3 + food.pulse);
+    ctx.shadowColor = food.type === 'burger' ? '#ff2d78' : '#ffe94a';
+    ctx.shadowBlur  = 18;
+    ctx.beginPath();
+    ctx.arc(cx, cy, CFG.cellSize * 0.45 * pulse, 0, Math.PI * 2);
+    ctx.fillStyle = food.type === 'burger' ? '#ff2d7820' : '#ffe94a20';
+    ctx.fill();
+    ctx.restore();
+
+    // Emoji
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(pulse, pulse);
+    ctx.font = `${size}px serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(food.emoji, 0, 1);
+    ctx.restore();
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ─── RENDER LOOP ──────────────────────────────────────────────────────────────
+function renderLoop(now) {
+  if (!state.running) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0d0d14';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+
+  const elapsed = now - state.lastTick;
+  const interp  = Math.min(1, elapsed / state.speed);
+
+  drawFood(now);
+  drawSnake(interp);
+
+  state.frame = requestAnimationFrame(renderLoop);
+}
+
+// ─── INPUT ────────────────────────────────────────────────────────────────────
+const DIR_MAP = {
+  ArrowUp:    { x: 0, y: -1 }, w: { x: 0, y: -1 }, W: { x: 0, y: -1 },
+  ArrowDown:  { x: 0, y:  1 }, s: { x: 0, y:  1 }, S: { x: 0, y:  1 },
+  ArrowLeft:  { x: -1, y: 0 }, a: { x: -1, y: 0 }, A: { x: -1, y: 0 },
+  ArrowRight: { x: 1, y:  0 }, d: { x: 1, y:  0 }, D: { x: 1, y:  0 },
+};
+
+document.addEventListener('keydown', e => {
+  const d = DIR_MAP[e.key];
+  if (!d) return;
+  e.preventDefault();
+  // Prevent reversal
+  if (d.x !== -state.dir.x || d.y !== -state.dir.y) {
+    state.nextDir = d;
+  }
+});
+
+// Mobile swipe support
+let touchStart = null;
+canvas.addEventListener('touchstart', e => {
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+
+canvas.addEventListener('touchend', e => {
+  if (!touchStart) return;
+  const dx = e.changedTouches[0].clientX - touchStart.x;
+  const dy = e.changedTouches[0].clientY - touchStart.y;
+  touchStart = null;
+  if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+  let d;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    d = dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+  } else {
+    d = dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+  }
+  if (d.x !== -state.dir.x || d.y !== -state.dir.y) {
+    state.nextDir = d;
+  }
+});
+
+// ─── START / RESTART ──────────────────────────────────────────────────────────
+function startGame() {
+  if (state.tickTimer) clearInterval(state.tickTimer);
+  if (state.frame)     cancelAnimationFrame(state.frame);
+
+  state = initState();
+  state.running = true;
+  state.lastTick = performance.now();
+
+  // Initial foods
+  spawnFood();
+  spawnFood();
+
+  DOM.startScreen.classList.add('hidden');
+  DOM.gameOverScreen.classList.add('hidden');
+
+  updateHUD();
+  resetTickTimer();
+  state.frame = requestAnimationFrame(renderLoop);
+}
+
+DOM.startBtn.addEventListener('click', startGame);
+DOM.restartBtn.addEventListener('click', startGame);
+
+// Initial static draw
+ctx.fillStyle = '#0d0d14';
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+drawGrid();
+</script>
+</body>
+</html>
